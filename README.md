@@ -1,19 +1,16 @@
-# Luna Telegram Bot
+# Luna - AI Girlfriend Telegram Bot 🤖💖
 
-Простой телеграм бот на Python.
+Advanced emotional AI companion with premium features and advertising system.
 
-## Установка
+## Features
+- Emotional intelligence & mood detection
+- Relationship level system  
+- Premium subscriptions
+- Advertising platform
+- Achievement system
 
-1. Скачайте файлы бота
-2. Установите зависимости: pip install -r requirements.txt
-3. Создайте config.py и добавьте токен бота
-4. Запустите: python bot.py
-
-## Команды
-
-/start - начать работу
-/help - помощь
-
-## Контакты
-
-По вопросам пишите: @your_username
+## Deployment
+1. Clone repository
+2. Install dependencies: `pip install -r requirements.txt`
+3. Configure `.env` file
+4. Run: `python bot.py`
