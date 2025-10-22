@@ -1,6 +1,3 @@
-# 📁 bot.py
-# 🎯 ПОЛНЫЙ КОД LUNA BOT - 1500+ СТРОК ВСЕХ ФИЧ!
-
 import os
 import telebot
 from telebot import types
