@@ -245,38 +245,33 @@ class MoodSystem:
         message_lower = message.lower()
         mood_scores = {mood: 0 for mood in MoodType}
         
-        # Анализ текущего сообщения
         for mood_type, mood_data in self.mood_states.items():
             for trigger in mood_data["triggers"]:
                 if trigger in message_lower:
                     mood_scores[mood_type] += 1
         
-        # Анализ контекста (последние 5 сообщений)
         recent_context = context[-5:] if len(context) > 5 else context
         for msg in recent_context:
             msg_text = (msg.get('user', '') + ' ' + msg.get('bot', '')).lower()
             for mood_type, mood_data in self.mood_states.items():
                 for trigger in mood_data["triggers"]:
                     if trigger in msg_text:
-                        mood_scores[mood_type] += 0.5  # Контекст имеет меньший вес
+                        mood_scores[mood_type] += 0.5
         
-        # Определяем доминирующее настроение
         max_score = max(mood_scores.values())
         if max_score > 0:
             dominant_moods = [mood for mood, score in mood_scores.items() if score == max_score]
             new_mood = random.choice(dominant_moods)
         else:
-            # Случайное настроение если не обнаружено триггеров
             new_mood = random.choice(list(MoodType))
         
         self.current_mood = new_mood
         self.mood_history.append({
             'mood': new_mood,
             'timestamp': datetime.datetime.now().isoformat(),
-            'message': message[:100]  # Сохраняем часть сообщения для контекста
+            'message': message[:100]
         })
         
-        # Ограничиваем историю настроений
         if len(self.mood_history) > 100:
             self.mood_history = self.mood_history[-100:]
         
@@ -352,7 +347,7 @@ class ConversationAnalyzer:
     def _detect_mood(self, message: str, context: List[Dict]) -> str:
         mood_scores = {'positive': 0, 'negative': 0, 'romantic': 0}
         
-        for msg in context[-3:]:  # Анализируем последние 3 сообщения
+        for msg in context[-3:]:
             msg_text = (msg.get('user', '') + ' ' + msg.get('bot', '')).lower()
             for mood, words in self.sentiment_keywords.items():
                 if mood != 'question':
@@ -423,16 +418,13 @@ class AdvancedFallbackSystem:
         mood = analysis.get('mood', 'neutral')
         tone = analysis.get('tone', 'neutral')
         
-        # Получаем подходящие шаблоны на основе анализа
         templates = self._get_relevant_templates(message_type, mood, tone)
         if not templates:
             templates = self.response_templates['conversational']['neutral']
         
-        # Учитываем стиль общения пользователя
         user_style = self.user_conversation_styles.get(user_id, 'balanced')
         templates = self._filter_by_conversation_style(templates, user_style)
         
-        # Исключаем недавно использованные шаблоны
         recent_templates = self.last_used_templates.get(user_id, [])
         available_templates = [t for t in templates if t not in recent_templates]
         
@@ -441,7 +433,6 @@ class AdvancedFallbackSystem:
         
         response = random.choice(available_templates)
         
-        # Обновляем историю использованных шаблонов
         if user_id not in self.last_used_templates:
             self.last_used_templates[user_id] = []
         
@@ -449,10 +440,7 @@ class AdvancedFallbackSystem:
         if len(self.last_used_templates[user_id]) > 5:
             self.last_used_templates[user_id].pop(0)
         
-        # Персонализируем ответ
         response = self._personalize_response(response, user_profile, relationship_level, analysis)
-        
-        # Обновляем стиль общения пользователя
         self._update_conversation_style(user_id, analysis, response)
         
         return response
@@ -460,7 +448,6 @@ class AdvancedFallbackSystem:
     def _get_relevant_templates(self, message_type: str, mood: str, tone: str) -> List[str]:
         templates = []
         
-        # Приоритет: message_type -> mood -> tone
         if message_type in self.response_templates:
             if mood in self.response_templates[message_type]:
                 templates.extend(self.response_templates[message_type][mood])
@@ -476,7 +463,7 @@ class AdvancedFallbackSystem:
             return [t for t in templates if any(emoji in t for emoji in ['💖', '❤️', '💕', '😘'])]
         elif style == 'friendly':
             return [t for t in templates if any(emoji in t for emoji in ['😊', '🌟', '🌸', '✨'])]
-        else:  # balanced
+        else:
             return templates
     
     def _personalize_response(self, response: str, user_profile: Dict, 
@@ -503,10 +490,6 @@ class AdvancedFallbackSystem:
             self.user_conversation_styles[user_id] = 'balanced'
         
         current_style = self.user_conversation_styles[user_id]
-        message_type = analysis.get('message_type')
-        emotional_intensity = analysis.get('emotional_intensity', 0)
-        
-        # Анализируем текущий стиль общения
         romantic_words = sum(1 for word in ['love', 'darling', 'sweetheart', 'beautiful'] if word in response.lower())
         friendly_words = sum(1 for word in ['friend', 'pal', 'buddy', 'great'] if word in response.lower())
         
@@ -517,9 +500,7 @@ class AdvancedFallbackSystem:
         else:
             new_style = 'balanced'
         
-        # Плавно изменяем стиль
         if new_style != current_style:
-            # 30% chance to change style to avoid frequent switches
             if random.random() < 0.3:
                 self.user_conversation_styles[user_id] = new_style
     
@@ -608,45 +589,44 @@ class IntelligentAI:
     
     def get_intelligent_response(self, user_message: str, user_context: List[Dict], 
                                user_profile: Dict, relationship_level: Dict) -> str:
-        # Анализируем сообщение
-        analysis = self.conversation_analyzer.analyze_message(user_message, user_context)
-        
-        # Обновляем настроение
-        current_mood = self.mood_system.detect_mood(user_message, user_context)
-        
-        # Пытаемся получить ответ от AI API
-        ai_response = None
-        for attempt in range(self.max_retries):
-            try:
-                ai_response = self._call_deepresearch_api(
-                    user_message, user_context, user_profile, relationship_level, analysis, current_mood
-                )
-                
-                if ai_response and self._validate_response(ai_response):
-                    logger.info(f"🤖 AI Response successful (attempt {attempt + 1})")
-                    self.api_call_count += 1
-                    self.last_api_call = datetime.datetime.now()
-                    return ai_response
+        try:
+            analysis = self.conversation_analyzer.analyze_message(user_message, user_context)
+            current_mood = self.mood_system.detect_mood(user_message, user_context)
+            
+            ai_response = None
+            for attempt in range(self.max_retries):
+                try:
+                    ai_response = self._call_deepresearch_api(
+                        user_message, user_context, user_profile, relationship_level, analysis, current_mood
+                    )
                     
-            except requests.exceptions.Timeout:
-                logger.warning(f"⏰ API Timeout on attempt {attempt + 1}")
-                continue
-            except Exception as e:
-                logger.error(f"❌ API Error on attempt {attempt + 1}: {e}")
-                break
-        
-        # Используем умный фолбэк если AI не сработал
-        fallback_response = self.fallback_system.get_smart_response(
-            user_message, user_context, user_profile, relationship_level, analysis
-        )
-        
-        # Добавляем информацию о настроении к фолбэк ответу
-        mood_response = self.mood_system.get_mood_response()
-        if random.random() < 0.3:  # 30% chance to include mood
-            fallback_response = f"{mood_response} {fallback_response}"
-        
-        logger.info(f"🔄 Using Smart Fallback")
-        return fallback_response
+                    if ai_response and self._validate_response(ai_response):
+                        logger.info(f"🤖 AI Response successful (attempt {attempt + 1})")
+                        self.api_call_count += 1
+                        self.last_api_call = datetime.datetime.now()
+                        return ai_response
+                        
+                except requests.exceptions.Timeout:
+                    logger.warning(f"⏰ API Timeout on attempt {attempt + 1}")
+                    continue
+                except Exception as e:
+                    logger.error(f"❌ API Error on attempt {attempt + 1}: {e}")
+                    break
+            
+            fallback_response = self.fallback_system.get_smart_response(
+                user_message, user_context, user_profile, relationship_level, analysis
+            )
+            
+            mood_response = self.mood_system.get_mood_response()
+            if random.random() < 0.3:
+                fallback_response = f"{mood_response} {fallback_response}"
+            
+            logger.info(f"🔄 Using Smart Fallback")
+            return fallback_response
+            
+        except Exception as e:
+            logger.error(f"❌ AI System Error: {e}")
+            return "💖 I'm here for you! Let's continue our wonderful conversation! 🌸"
     
     def _call_deepresearch_api(self, user_message: str, user_context: List[Dict],
                              user_profile: Dict, relationship_level: Dict, analysis: Dict, current_mood: MoodType) -> Optional[str]:
@@ -702,7 +682,6 @@ class IntelligentAI:
         user_name = user_profile.get('name', 'Unknown')
         user_gender = user_profile.get('gender', 'unknown')
         
-        # Определяем обращение на основе пола
         if user_gender == 'male':
             greeting = "handsome"
         elif user_gender == 'female':
@@ -752,13 +731,12 @@ class IntelligentAI:
 Отвечай с душой и теплотой! Помни - ты говоришь с человеком, который тебе дорог. Будь настоящей и заботливой. 💫"""
     
     def _format_conversation_context(self, user_context: List[Dict]) -> str:
-        """Форматирует историю разговора для промпта"""
         if not user_context:
             return "Это начало разговора! Пользователь только что начал общение."
         
         context_text = "Последние сообщения в разговоре:\n"
-        for i, msg in enumerate(user_context[-8:], 1):  # Последние 8 сообщений
-            user_msg = msg.get('user', '')[:100]  # Обрезаем длинные сообщения
+        for i, msg in enumerate(user_context[-8:], 1):
+            user_msg = msg.get('user', '')[:100]
             bot_msg = msg.get('bot', '')[:100]
             context_text += f"{i}. 👤: {user_msg}\n"
             context_text += f"   🤖: {bot_msg}\n"
@@ -766,11 +744,9 @@ class IntelligentAI:
         return context_text
     
     def _validate_response(self, response: str) -> bool:
-        """Проверяет качество ответа AI"""
         if not response or len(response.strip()) < 10:
             return False
         
-        # Проверяем на шаблонные/неуместные ответы
         bad_patterns = [
             "как AI модель", "я не могу", "извините", "как искусственный интеллект",
             "как языковая модель", "I cannot", "I'm sorry", "as an AI", "I'm just an AI",
@@ -781,7 +757,6 @@ class IntelligentAI:
         return not any(pattern in response_lower for pattern in bad_patterns)
     
     def get_stats(self) -> Dict:
-        """Возвращает статистику использования AI"""
         return {
             'total_api_calls': self.api_call_count,
             'last_api_call': self.last_api_call.isoformat() if self.last_api_call else None,
@@ -795,14 +770,13 @@ class PremiumManager:
         self.db = db
         self.tier_config = self._load_tier_config()
         self.feature_cache = {}
-        self.cache_ttl = 300  # 5 минут
+        self.cache_ttl = 300
         self.last_cache_clean = time.time()
         
         logger.info("💰 Advanced Premium System Initialized")
         logger.info(f"💎 Available Tiers: {len(self.tier_config)}")
     
     def _load_tier_config(self) -> Dict:
-        """Загружает конфигурацию всех тарифов"""
         return {
             PremiumTier.FREE: {
                 "name": "Free",
@@ -907,7 +881,6 @@ class PremiumManager:
         }
     
     def activate_premium(self, user_id: int, tier: PremiumTier, duration_days: int = 30) -> bool:
-        """Активирует премиум подписку для пользователя"""
         try:
             user_id_str = str(user_id)
             
@@ -926,7 +899,6 @@ class PremiumManager:
             self.db.premium_users[user_id_str] = premium_data
             self.db.save_data()
             
-            # Очищаем кэш для этого пользователя
             self._clear_user_cache(user_id)
             
             logger.info(f"🎉 Premium Activated: User {user_id} -> {tier.value} ({duration_days} days)")
@@ -937,19 +909,15 @@ class PremiumManager:
             return False
     
     def _get_tier_features(self, tier: PremiumTier) -> List[str]:
-        """Возвращает список фич для тарифа"""
         return [feature.value for feature, enabled in self.tier_config[tier]['features'].items() if enabled]
     
     def _get_tier_limits(self, tier: PremiumTier) -> Dict:
-        """Возвращает лимиты для тарифа"""
         return self.tier_config[tier]['limits']
     
     def get_user_tier(self, user_id: int) -> PremiumTier:
-        """Возвращает тариф пользователя"""
         user_id_str = str(user_id)
         
         if user_id_str in self.db.premium_users:
-            # Проверяем не истекла ли подписка
             premium_data = self.db.premium_users[user_id_str]
             expires_str = premium_data.get('expires')
             
@@ -957,7 +925,6 @@ class PremiumManager:
                 try:
                     expire_date = datetime.datetime.fromisoformat(expires_str)
                     if datetime.datetime.now() > expire_date:
-                        # Подписка истекла - удаляем
                         del self.db.premium_users[user_id_str]
                         self.db.save_data()
                         return PremiumTier.FREE
@@ -973,8 +940,6 @@ class PremiumManager:
         return PremiumTier.FREE
     
     def has_feature(self, user_id: int, feature: PremiumFeature) -> bool:
-        """Проверяет доступ к фиче с кэшированием"""
-        # Очищаем старый кэш если нужно
         self._clean_old_cache()
         
         cache_key = f"{user_id}_{feature.value}"
@@ -988,21 +953,17 @@ class PremiumManager:
         user_tier = self.get_user_tier(user_id)
         has_access = self.tier_config[user_tier]['features'].get(feature, False)
         
-        # Кэшируем результат
         self.feature_cache[cache_key] = (current_time, has_access)
         return has_access
     
     def get_user_context_limit(self, user_id: int) -> int:
-        """Возвращает лимит контекста для пользователя"""
         user_tier = self.get_user_tier(user_id)
         return self.tier_config[user_tier]['limits']['max_context_messages']
     
     def get_tier_info(self, tier: PremiumTier) -> Dict:
-        """Возвращает информацию о тарифе"""
         return self.tier_config[tier]
     
     def get_premium_stats(self) -> Dict:
-        """Возвращает статистику премиум подписок"""
         total_users = len(self.db.user_stats)
         premium_users = len(self.db.premium_users)
         
@@ -1024,7 +985,6 @@ class PremiumManager:
         }
     
     def _calculate_monthly_revenue(self, tier_counts: Dict) -> float:
-        """Рассчитывает месячный доход"""
         tier_prices = {
             'basic': 4.99,
             'premium': 9.99,
@@ -1039,9 +999,8 @@ class PremiumManager:
         return revenue
     
     def _clean_old_cache(self):
-        """Очищает старый кэш"""
         current_time = time.time()
-        if current_time - self.last_cache_clean > 60:  # Каждую минуту
+        if current_time - self.last_cache_clean > 60:
             expired_keys = []
             for key, (cached_time, _) in self.feature_cache.items():
                 if current_time - cached_time > self.cache_ttl:
@@ -1053,7 +1012,6 @@ class PremiumManager:
             self.last_cache_clean = current_time
     
     def _clear_user_cache(self, user_id: int):
-        """Очищает кэш для конкретного пользователя"""
         user_prefix = f"{user_id}_"
         keys_to_remove = [key for key in self.feature_cache.keys() if key.startswith(user_prefix)]
         for key in keys_to_remove:
@@ -1085,10 +1043,8 @@ class SimpleDatabase:
         logger.info(f"📊 Loaded: {len(self.user_stats)} users, {self.get_total_messages()} messages")
     
     def load_data(self):
-        """Умная загрузка данных с приоритетом надежности"""
         logger.info("🔍 Loading database...")
         
-        # Пробуем основной файл
         if os.path.exists(self.data_file):
             try:
                 with open(self.data_file, 'r', encoding='utf-8') as f:
@@ -1099,7 +1055,6 @@ class SimpleDatabase:
             except Exception as e:
                 logger.error(f"❌ Main file corrupted: {e}")
         
-        # Пробуем backup файл
         if os.path.exists(self.backup_file):
             try:
                 logger.info("⚠️  Trying backup file...")
@@ -1111,7 +1066,6 @@ class SimpleDatabase:
             except Exception as e:
                 logger.error(f"❌ Backup file corrupted: {e}")
         
-        # Пробуем emergency файл
         if os.path.exists(self.emergency_file):
             try:
                 logger.info("🚨 Trying emergency file...")
@@ -1123,19 +1077,16 @@ class SimpleDatabase:
             except Exception as e:
                 logger.error(f"❌ Emergency file corrupted: {e}")
         
-        # Создаем новую базу
         logger.info("💾 No valid data files, starting fresh database")
         self._initialize_fresh_database()
     
     def _load_from_data(self, data: Dict):
-        """Загружает данные из JSON"""
         self.user_stats = data.get('user_stats', {})
         self.user_gender = data.get('user_gender', {})
         self.user_context = data.get('user_context', {})
         self.premium_users = data.get('premium_users', {})
         self.system_stats = data.get('system_stats', self.system_stats)
         
-        # Загружаем достижения с конвертацией
         achievements_data = data.get('user_achievements', {})
         self.user_achievements = {}
         
@@ -1155,14 +1106,12 @@ class SimpleDatabase:
             }
     
     def _load_emergency_data(self, data: Dict):
-        """Загружает данные из emergency файла"""
         self.user_stats = data.get('user_stats', {})
         self.user_context = data.get('user_context', {})
         self.premium_users = data.get('premium_users', {})
         logger.warning("🚨 Loaded emergency data - some information may be lost")
     
     def _initialize_fresh_database(self):
-        """Инициализирует новую базу данных"""
         self.user_stats = {}
         self.user_gender = {}
         self.user_context = {}
@@ -1173,7 +1122,6 @@ class SimpleDatabase:
         self.system_stats['start_time'] = datetime.datetime.now().isoformat()
     
     def save_data(self):
-        """Надежное сохранение данных"""
         try:
             self.system_stats['total_messages_processed'] = self.get_total_messages()
             self.system_stats['total_users_ever'] = len(self.user_stats)
@@ -1194,11 +1142,9 @@ class SimpleDatabase:
                 'checksum': self._calculate_checksum()
             }
             
-            # Сохраняем основной файл
             with open(self.data_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             
-            # Создаем backup
             try:
                 with open(self.backup_file, 'w', encoding='utf-8') as f:
                     json.dump(data, f, ensure_ascii=False, indent=2)
@@ -1209,11 +1155,9 @@ class SimpleDatabase:
             
         except Exception as e:
             logger.error(f"❌ DATABASE SAVE ERROR: {e}")
-            # Пробуем экстренное сохранение
             self.emergency_save()
     
     def emergency_save(self):
-        """Экстренное сохранение при ошибках"""
         try:
             logger.warning("🚨 EMERGENCY DATA SAVE!")
             simple_data = {
@@ -1232,7 +1176,6 @@ class SimpleDatabase:
             logger.error(f"💀 CRITICAL: Emergency save failed: {e}")
     
     def make_achievements_serializable(self):
-        """Конвертирует достижения для JSON"""
         serializable = {}
         for user_id, achievements in self.user_achievements.items():
             serializable[user_id] = {
@@ -1249,17 +1192,14 @@ class SimpleDatabase:
         return serializable
     
     def _calculate_checksum(self) -> str:
-        """Рассчитывает простую checksum для проверки целостности"""
         import hashlib
         data_str = json.dumps(self.user_stats, sort_keys=True)
         return hashlib.md5(data_str.encode()).hexdigest()
     
     def get_total_messages(self) -> int:
-        """Возвращает общее количество сообщений"""
         return sum(stats.get('message_count', 0) for stats in self.user_stats.values())
     
     def get_daily_stats(self) -> Dict:
-        """Возвращает дневную статистику"""
         today = datetime.datetime.now().date()
         daily_messages = 0
         daily_users = 0
@@ -1285,7 +1225,6 @@ class SimpleDatabase:
         }
     
     def cleanup_old_data(self, days: int = 30):
-        """Очищает старые данные"""
         cutoff_date = datetime.datetime.now() - datetime.timedelta(days=days)
         users_to_remove = []
         
@@ -1311,7 +1250,6 @@ class SimpleDatabase:
         logger.info(f"🧹 Cleaned up {len(users_to_remove)} inactive users")
     
     def add_feedback(self, user_id: int, feedback: str, rating: int = 0):
-        """Добавляет фидбэк от пользователя"""
         user_id_str = str(user_id)
         if user_id_str not in self.user_feedback:
             self.user_feedback[user_id_str] = []
@@ -1323,7 +1261,6 @@ class SimpleDatabase:
             'user_stats': self.user_stats.get(user_id_str, {})
         })
         
-        # Отправляем админу если есть FEEDBACK_CHAT_ID
         if FEEDBACK_CHAT_ID:
             try:
                 user_info = self.user_stats.get(user_id_str, {})
@@ -1352,10 +1289,8 @@ class AchievementSystem:
         self.achievements = ACHIEVEMENTS
     
     def check_achievements(self, user_id: int, achievement_type: str, value: int = 1):
-        """Проверяет и разблокирует достижения"""
         user_id_str = str(user_id)
         
-        # Инициализируем достижения пользователя если нужно
         if user_id_str not in self.db.user_achievements:
             self.db.user_achievements[user_id_str] = {
                 'unlocked': [],
@@ -1371,7 +1306,6 @@ class AchievementSystem:
         
         user_ach = self.db.user_achievements[user_id_str]
         
-        # Обновляем прогресс
         if achievement_type == 'messages_sent':
             user_ach['progress']['messages_sent'] += value
         elif achievement_type == 'levels_reached':
@@ -1384,11 +1318,9 @@ class AchievementSystem:
         elif achievement_type == 'premium_activated':
             user_ach['progress']['premium_activated'] = max(user_ach['progress']['premium_activated'], value)
         elif achievement_type == 'days_active':
-            # Для дней активности нужна более сложная логика
             current_days = user_ach['progress']['days_active']
             user_ach['progress']['days_active'] = max(current_days, value)
         
-        # Проверяем разблокировки
         unlocked_achievements = []
         for ach_id, ach_data in self.achievements.items():
             if ach_id not in user_ach['unlocked']:
@@ -1400,14 +1332,12 @@ class AchievementSystem:
         return unlocked_achievements
     
     def get_user_achievements(self, user_id: int) -> Dict:
-        """Возвращает достижения пользователя"""
         user_id_str = str(user_id)
         if user_id_str in self.db.user_achievements:
             return self.db.user_achievements[user_id_str]
         return {'unlocked': [], 'progress': {}}
     
     def get_achievement_progress(self, user_id: int, achievement_id: str) -> Dict:
-        """Возвращает прогресс по конкретному достижению"""
         user_ach = self.get_user_achievements(user_id)
         ach_data = self.achievements.get(achievement_id)
         
@@ -1449,7 +1379,6 @@ class AdvertisingSystem:
         }
     
     def create_campaign(self, advertiser: str, ad_format: str, budget: float, duration_days: int) -> str:
-        """Создает рекламную кампанию"""
         campaign_id = f"campaign_{int(time.time())}_{random.randint(1000, 9999)}"
         
         campaign = {
@@ -1474,8 +1403,6 @@ class AdvertisingSystem:
         return campaign_id
     
     def get_available_ad(self, user_id: int, user_tier: PremiumTier) -> Optional[Dict]:
-        """Возвращает доступное рекламное объявление для пользователя"""
-        # Пользователи с премиум не видят рекламу
         if user_tier != PremiumTier.FREE:
             return None
         
@@ -1483,10 +1410,7 @@ class AdvertisingSystem:
         if not active_campaigns:
             return None
         
-        # Выбираем случайную активную кампанию
         campaign = random.choice(active_campaigns)
-        
-        # Увеличиваем счетчик показов
         campaign['impressions'] += 1
         
         ad_template = self._generate_ad_content(campaign)
@@ -1498,7 +1422,6 @@ class AdvertisingSystem:
         }
     
     def _generate_ad_content(self, campaign: Dict) -> str:
-        """Генерирует контент рекламного объявления"""
         ad_templates = {
             'sponsored_messages': [
                 f"🌟 *Sponsored Message*\n\n{campaign['advertiser']} brings you special offers!",
@@ -1516,10 +1439,41 @@ class AdvertisingSystem:
         return random.choice(templates)
     
     def record_click(self, campaign_id: str, user_id: int):
-        """Записывает клик по рекламе"""
         if campaign_id in self.campaigns:
             self.campaigns[campaign_id]['clicks'] += 1
             self.db.save_data()
+
+# ==================== МЕНЕДЖЕР БЕЗОПАСНОСТИ ====================
+class SecurityManager:
+    def __init__(self):
+        self.suspicious_activities = {}
+        self.max_message_length = 4000
+        self.max_requests_per_minute = 30
+    
+    def validate_message(self, message, user_id):
+        user_id_str = str(user_id)
+        
+        if len(message) > self.max_message_length:
+            return False, "Message too long"
+        
+        sql_keywords = ['SELECT', 'INSERT', 'DELETE', 'UPDATE', 'DROP', 'UNION']
+        if any(keyword in message.upper() for keyword in sql_keywords):
+            return False, "Suspicious content"
+        
+        current_time = time.time()
+        if user_id_str not in self.suspicious_activities:
+            self.suspicious_activities[user_id_str] = []
+        
+        self.suspicious_activities[user_id_str] = [
+            t for t in self.suspicious_activities[user_id_str] 
+            if current_time - t < 60
+        ]
+        
+        if len(self.suspicious_activities[user_id_str]) >= self.max_requests_per_minute:
+            return False, "Rate limit exceeded"
+        
+        self.suspicious_activities[user_id_str].append(current_time)
+        return True, "OK"
 
 # ==================== ИНИЦИАЛИЗАЦИЯ СИСТЕМ ====================
 db = SimpleDatabase()
@@ -1527,30 +1481,29 @@ premium_manager = PremiumManager(db)
 achievement_system = AchievementSystem(db)
 advertising_system = AdvertisingSystem(db)
 ai_system = IntelligentAI(DEEPRESEARCH_API_KEY)
+security_manager = SecurityManager()
 
 # ==================== АВТОСОХРАНЕНИЕ И ОЧИСТКА ====================
 def auto_save():
-    """Автоматическое сохранение каждые 30 секунд"""
     while True:
         time.sleep(30)
         try:
             db.save_data()
-            # Раз в час делаем очистку
             if datetime.datetime.now().minute == 0:
                 db.cleanup_old_data(days=30)
         except Exception as e:
             logger.error(f"❌ Auto-save failed: {e}")
 
 def periodic_stats():
-    """Периодическая статистика и мониторинг"""
     while True:
-        time.sleep(3600)  # Каждый час
+        time.sleep(3600)
         try:
-            daily_stats = db.get_daily_stats()
-            premium_stats = premium_manager.get_premium_stats()
-            ai_stats = ai_system.get_stats()
-            
-            stats_message = f"""
+            if ADMIN_CHAT_ID:
+                daily_stats = db.get_daily_stats()
+                premium_stats = premium_manager.get_premium_stats()
+                ai_stats = ai_system.get_stats()
+                
+                stats_message = f"""
 📈 *Hourly Stats Update*
 
 *Users:* {len(db.user_stats)} total, {daily_stats['daily_users']} today
@@ -1558,16 +1511,13 @@ def periodic_stats():
 *Premium:* {premium_stats['premium_users']} users (${premium_stats['total_revenue_monthly']:.2f}/month)
 *AI Calls:* {ai_stats['total_api_calls']} total
 *System:* 🟢 Healthy
-            """
-            
-            # Отправляем статистику админу если есть ADMIN_CHAT_ID
-            if ADMIN_CHAT_ID:
+                """
+                
                 bot.send_message(ADMIN_CHAT_ID, stats_message, parse_mode='Markdown')
                 
         except Exception as e:
             logger.error(f"❌ Periodic stats failed: {e}")
 
-# Запускаем фоновые процессы
 auto_save_thread = threading.Thread(target=auto_save, daemon=True)
 auto_save_thread.start()
 
@@ -1577,56 +1527,54 @@ stats_thread.start()
 # ==================== TELEGRAM КОМАНДЫ ====================
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    user_id = message.from_user.id
-    user_name = message.from_user.first_name
-    username = message.from_user.username
-    
-    logger.info(f"👤 User {user_id} ({user_name}) started bot")
-    
-    # Инициализация пользователя
-    user_id_str = str(user_id)
-    if user_id_str not in db.user_stats:
-        db.user_stats[user_id_str] = {
-            'id': user_id,
-            'name': user_name,
-            'username': username,
-            'message_count': 0,
-            'first_seen': datetime.datetime.now().isoformat(),
-            'last_seen': datetime.datetime.now().isoformat(),
-            'level': 1,
-            'premium_status': 'free',
-            'total_chars_sent': 0,
-            'avg_message_length': 0,
-            'favorite_topics': [],
-            'conversation_style': 'balanced'
-        }
-        db.user_context[user_id_str] = []
-        db.user_gender[user_id_str] = UserGender.UNKNOWN.value
+    try:
+        user_id = message.from_user.id
+        user_name = message.from_user.first_name
+        username = message.from_user.username
         
-        logger.info(f"🎉 New user registered: {user_name} (ID: {user_id})")
-    
-    user_stats = db.user_stats[user_id_str]
-    user_stats['last_seen'] = datetime.datetime.now().isoformat()
-    message_count = user_stats['message_count']
-    
-    # Определяем уровень отношений
-    level = 1
-    for level_num, level_data in RELATIONSHIP_LEVELS.items():
-        if message_count >= level_data['messages']:
-            level = level_num
-    
-    level_data = RELATIONSHIP_LEVELS[level]
-    user_tier = premium_manager.get_user_tier(user_id)
-    
-    # Определяем пол пользователя по имени (простая эвристика)
-    if user_id_str not in db.user_gender or db.user_gender[user_id_str] == UserGender.UNKNOWN.value:
-        gender = detect_gender(user_name)
-        db.user_gender[user_id_str] = gender.value
-    
-    user_gender = db.user_gender[user_id_str]
-    gender_emoji = "👨" if user_gender == UserGender.MALE.value else "👩" if user_gender == UserGender.FEMALE.value else "👤"
-    
-    welcome_text = f"""
+        logger.info(f"👤 User {user_id} ({user_name}) started bot")
+        
+        user_id_str = str(user_id)
+        if user_id_str not in db.user_stats:
+            db.user_stats[user_id_str] = {
+                'id': user_id,
+                'name': user_name,
+                'username': username,
+                'message_count': 0,
+                'first_seen': datetime.datetime.now().isoformat(),
+                'last_seen': datetime.datetime.now().isoformat(),
+                'level': 1,
+                'premium_status': 'free',
+                'total_chars_sent': 0,
+                'avg_message_length': 0,
+                'favorite_topics': [],
+                'conversation_style': 'balanced'
+            }
+            db.user_context[user_id_str] = []
+            db.user_gender[user_id_str] = UserGender.UNKNOWN.value
+            
+            logger.info(f"🎉 New user registered: {user_name} (ID: {user_id})")
+        
+        user_stats = db.user_stats[user_id_str]
+        user_stats['last_seen'] = datetime.datetime.now().isoformat()
+        message_count = user_stats['message_count']
+        
+        level = 1
+        for level_num, level_data in RELATIONSHIP_LEVELS.items():
+            if message_count >= level_data['messages']:
+                level = level_num
+        
+        level_data = RELATIONSHIP_LEVELS[level]
+        user_tier = premium_manager.get_user_tier(user_id)
+        
+        if user_id_str not in db.user_gender or db.user_gender[user_id_str] == UserGender.UNKNOWN.value:
+            gender = detect_gender(user_name)
+            db.user_gender[user_id_str] = gender.value
+        
+        user_gender = db.user_gender[user_id_str]
+        gender_emoji = "👨" if user_gender == UserGender.MALE.value else "👩" if user_gender == UserGender.FEMALE.value else "👤"
+        
+        welcome_text = f"""
 {gender_emoji} *Welcome to Luna, {user_name}!* 💖
 
 I'm your AI girlfriend companion, here to chat, support, and grow with you!
@@ -1639,30 +1587,28 @@ I'm your AI girlfriend companion, here to chat, support, and grow with you!
 {level_data['description']}
 
 Use /menu to see all options, or just start chatting! 🌸
-    """
-    
-    # Создаем инлайн-кнопки для быстрого доступа
-    markup = types.InlineKeyboardMarkup()
-    markup.row(
-        types.InlineKeyboardButton("💬 Start Chatting", callback_data="quick_chat"),
-        types.InlineKeyboardButton("📊 My Progress", callback_data="my_progress")
-    )
-    markup.row(
-        types.InlineKeyboardButton("💎 Premium", callback_data="premium_info"),
-        types.InlineKeyboardButton("🏆 Achievements", callback_data="achievements")
-    )
-    
-    bot.send_message(
-        user_id, 
-        welcome_text, 
-        parse_mode='Markdown',
-        reply_markup=markup
-    )
-    
-    # Проверяем достижения для первого дня
-    unlocked = achievement_system.check_achievements(user_id, 'first_day', 1)
-    for achievement in unlocked:
-        achievement_text = f"""
+        """
+        
+        markup = types.InlineKeyboardMarkup()
+        markup.row(
+            types.InlineKeyboardButton("💬 Start Chatting", callback_data="quick_chat"),
+            types.InlineKeyboardButton("📊 My Progress", callback_data="my_progress")
+        )
+        markup.row(
+            types.InlineKeyboardButton("💎 Premium", callback_data="premium_info"),
+            types.InlineKeyboardButton("🏆 Achievements", callback_data="achievements")
+        )
+        
+        bot.send_message(
+            user_id, 
+            welcome_text, 
+            parse_mode='Markdown',
+            reply_markup=markup
+        )
+        
+        unlocked = achievement_system.check_achievements(user_id, 'first_day', 1)
+        for achievement in unlocked:
+            achievement_text = f"""
 🎉 *Achievement Unlocked!* 🏆
 
 *{achievement['emoji']} {achievement['name']}*
@@ -1671,31 +1617,38 @@ Use /menu to see all options, or just start chatting! 🌸
 *Reward:* {achievement['reward']}
 
 Keep chatting to unlock more achievements! 🌟
-        """
-        bot.send_message(user_id, achievement_text, parse_mode='Markdown')
+            """
+            bot.send_message(user_id, achievement_text, parse_mode='Markdown')
+            
+    except Exception as e:
+        logger.error(f"❌ Error in /start: {e}")
+        try:
+            bot.reply_to(message, "😔 Sorry, there was an error. Please try again! 💖")
+        except:
+            pass
 
 @bot.message_handler(commands=['menu'])
 def show_menu(message):
-    user_id = message.from_user.id
-    
-    markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=False)
-    
-    buttons = [
-        "💬 Chat with Luna", "💕 Romantic Mode",
-        "📊 My Progress", "🏆 Achievements", 
-        "💎 Premium Info", "❤️ Relationship Status",
-        "🎮 Fun & Games", "📝 Send Feedback",
-        "🔧 Settings", "🌙 Goodnight Luna"
-    ]
-    
-    # Добавляем кнопки в сетку 2x5
-    for i in range(0, len(buttons), 2):
-        if i + 1 < len(buttons):
-            markup.row(types.KeyboardButton(buttons[i]), types.KeyboardButton(buttons[i + 1]))
-        else:
-            markup.row(types.KeyboardButton(buttons[i]))
-    
-    menu_text = """
+    try:
+        user_id = message.from_user.id
+        
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=False)
+        
+        buttons = [
+            "💬 Chat with Luna", "💕 Romantic Mode",
+            "📊 My Progress", "🏆 Achievements", 
+            "💎 Premium Info", "❤️ Relationship Status",
+            "🎮 Fun & Games", "📝 Send Feedback",
+            "🔧 Settings", "🌙 Goodnight Luna"
+        ]
+        
+        for i in range(0, len(buttons), 2):
+            if i + 1 < len(buttons):
+                markup.row(types.KeyboardButton(buttons[i]), types.KeyboardButton(buttons[i + 1]))
+            else:
+                markup.row(types.KeyboardButton(buttons[i]))
+        
+        menu_text = """
 🎯 *Luna Bot Menu*
 
 Choose what you'd like to do:
@@ -1712,33 +1665,40 @@ Choose what you'd like to do:
 *🌙 Goodnight* - Say goodnight and get sweet dreams
 
 Or just type anything to chat! 💖
-    """
-    
-    bot.send_message(
-        user_id, 
-        menu_text,
-        reply_markup=markup,
-        parse_mode='Markdown'
-    )
-    
-    # Отмечаем использование кнопок для достижений
-    achievement_system.check_achievements(user_id, 'button_used', 1)
+        """
+        
+        bot.send_message(
+            user_id, 
+            menu_text,
+            reply_markup=markup,
+            parse_mode='Markdown'
+        )
+        
+        achievement_system.check_achievements(user_id, 'button_used', 1)
+        
+    except Exception as e:
+        logger.error(f"❌ Error in /menu: {e}")
+        try:
+            bot.reply_to(message, "😔 Sorry, couldn't show menu. Please try again! 🌸")
+        except:
+            pass
 
 @bot.message_handler(commands=['status'])
 def show_status(message):
-    user_id = message.from_user.id
-    
-    total_users = len(db.user_stats)
-    total_messages = db.get_total_messages()
-    daily_stats = db.get_daily_stats()
-    premium_stats = premium_manager.get_premium_stats()
-    ai_stats = ai_system.get_stats()
-    
-    user_tier = premium_manager.get_user_tier(user_id)
-    user_stats = db.user_stats.get(str(user_id), {})
-    message_count = user_stats.get('message_count', 0)
-    
-    status_text = f"""
+    try:
+        user_id = message.from_user.id
+        
+        total_users = len(db.user_stats)
+        total_messages = db.get_total_messages()
+        daily_stats = db.get_daily_stats()
+        premium_stats = premium_manager.get_premium_stats()
+        ai_stats = ai_system.get_stats()
+        
+        user_tier = premium_manager.get_user_tier(user_id)
+        user_stats = db.user_stats.get(str(user_id), {})
+        message_count = user_stats.get('message_count', 0)
+        
+        status_text = f"""
 🤖 *Luna Bot Status Dashboard*
 
 *📊 Global Statistics:*
@@ -1763,39 +1723,44 @@ def show_status(message):
 
 *🔧 System Health:* 🟢 All Systems Operational
 *⏰ Uptime:* {db.system_stats['start_time']}
-    """
-    
-    bot.reply_to(message, status_text, parse_mode='Markdown')
+        """
+        
+        bot.reply_to(message, status_text, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"❌ Error in /status: {e}")
+        try:
+            bot.reply_to(message, "😔 Sorry, couldn't load status. Please try again! 📊")
+        except:
+            pass
 
 @bot.message_handler(commands=['myprogress'])
 def show_progress(message):
-    user_id = message.from_user.id
-    user_id_str = str(user_id)
-    
-    if user_id_str not in db.user_stats:
-        bot.reply_to(message, "Please use /start first! 🌸")
-        return
-    
-    stats = db.user_stats[user_id_str]
-    message_count = stats.get('message_count', 0)
-    level = stats.get('level', 1)
-    level_data = RELATIONSHIP_LEVELS[level]
-    
-    # Следующий уровень
-    next_level = level + 1 if level < 4 else 4
-    next_level_data = RELATIONSHIP_LEVELS.get(next_level, {})
-    messages_needed = next_level_data.get('messages', 0) - message_count
-    
-    # Прогресс бар
-    progress_percentage = min(100, int((message_count / next_level_data.get('messages', 1)) * 100))
-    progress_bar = create_progress_bar(progress_percentage)
-    
-    # Достижения
-    user_achievements = achievement_system.get_user_achievements(user_id)
-    unlocked_count = len(user_achievements['unlocked'])
-    total_achievements = len(ACHIEVEMENTS)
-    
-    progress_text = f"""
+    try:
+        user_id = message.from_user.id
+        user_id_str = str(user_id)
+        
+        if user_id_str not in db.user_stats:
+            bot.reply_to(message, "Please use /start first! 🌸")
+            return
+        
+        stats = db.user_stats[user_id_str]
+        message_count = stats.get('message_count', 0)
+        level = stats.get('level', 1)
+        level_data = RELATIONSHIP_LEVELS[level]
+        
+        next_level = level + 1 if level < 4 else 4
+        next_level_data = RELATIONSHIP_LEVELS.get(next_level, {})
+        messages_needed = next_level_data.get('messages', 0) - message_count
+        
+        progress_percentage = min(100, int((message_count / next_level_data.get('messages', 1)) * 100))
+        progress_bar = create_progress_bar(progress_percentage)
+        
+        user_achievements = achievement_system.get_user_achievements(user_id)
+        unlocked_count = len(user_achievements['unlocked'])
+        total_achievements = len(ACHIEVEMENTS)
+        
+        progress_text = f"""
 📊 *Your Progress with Luna* {level_data['color']}
 
 *Relationship Level:* {level_data['name']}
@@ -1808,153 +1773,182 @@ def show_progress(message):
 *Current Features:* {', '.join(level_data['unlocks'])}
 
 """
-    
-    if level < 4:
-        progress_text += f"""
+        
+        if level < 4:
+            progress_text += f"""
 *Next Level:* {next_level_data['name']}
 *Messages needed:* {messages_needed}
 *Will unlock:* {', '.join(next_level_data['unlocks'])}
-        """
-    else:
-        progress_text += "\n🎊 *You've reached the maximum level!* You're my soulmate! 💖"
-    
-    bot.reply_to(message, progress_text, parse_mode='Markdown')
+            """
+        else:
+            progress_text += "\n🎊 *You've reached the maximum level!* You're my soulmate! 💖"
+        
+        bot.reply_to(message, progress_text, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"❌ Error in /myprogress: {e}")
+        try:
+            bot.reply_to(message, "😔 Sorry, couldn't load progress. Please try again! 📊")
+        except:
+            pass
 
 @bot.message_handler(commands=['achievements'])
 def show_achievements(message):
-    user_id = message.from_user.id
-    user_achievements = achievement_system.get_user_achievements(user_id)
-    unlocked_count = len(user_achievements['unlocked'])
-    total_achievements = len(ACHIEVEMENTS)
-    
-    achievements_text = f"""
+    try:
+        user_id = message.from_user.id
+        user_achievements = achievement_system.get_user_achievements(user_id)
+        unlocked_count = len(user_achievements.get('unlocked', []))
+        total_achievements = len(ACHIEVEMENTS)
+        
+        achievements_text = f"""
 🏆 *Your Achievements*
 
 *Progress:* {unlocked_count}/{total_achievements} unlocked
 
 """
-    
-    # Группируем достижения по статусу
-    unlocked_achievements = []
-    in_progress_achievements = []
-    
-    for ach_id, ach_data in ACHIEVEMENTS.items():
-        progress_info = achievement_system.get_achievement_progress(user_id, ach_id)
         
-        if progress_info['unlocked']:
-            unlocked_achievements.append(progress_info)
-        else:
-            in_progress_achievements.append(progress_info)
-    
-    # Показываем разблокированные
-    if unlocked_achievements:
-        achievements_text += "*✅ Unlocked Achievements:*\n\n"
-        for progress_info in unlocked_achievements:
-            ach = progress_info['achievement']
-            achievements_text += f"{ach['emoji']} *{ach['name']}*\n"
-            achievements_text += f"   {ach['description']}\n"
-            achievements_text += f"   🎁 {ach['reward']}\n\n"
-    
-    # Показываем в процессе
-    if in_progress_achievements:
-        achievements_text += "*🔒 In Progress:*\n\n"
-        for progress_info in in_progress_achievements:
-            ach = progress_info['achievement']
-            achievements_text += f"{ach['emoji']} *{ach['name']}*\n"
-            achievements_text += f"   {ach['description']}\n"
-            achievements_text += f"   📊 {progress_info['progress']}/{ach['goal']} ({progress_info['percentage']}%)\n\n"
-    
-    if not unlocked_achievements and not in_progress_achievements:
-        achievements_text += "🎮 No achievements yet! Start chatting to unlock them! 🌟"
-    
-    bot.reply_to(message, achievements_text, parse_mode='Markdown')
+        unlocked_achievements = []
+        in_progress_achievements = []
+        
+        for ach_id, ach_data in ACHIEVEMENTS.items():
+            progress_info = achievement_system.get_achievement_progress(user_id, ach_id)
+            
+            if progress_info and progress_info.get('unlocked'):
+                unlocked_achievements.append(progress_info)
+            elif progress_info:
+                in_progress_achievements.append(progress_info)
+        
+        if unlocked_achievements:
+            achievements_text += "*✅ Unlocked Achievements:*\n\n"
+            for progress_info in unlocked_achievements:
+                ach = progress_info['achievement']
+                achievements_text += f"{ach['emoji']} *{ach['name']}*\n"
+                achievements_text += f"   {ach['description']}\n"
+                achievements_text += f"   🎁 {ach['reward']}\n\n"
+        
+        if in_progress_achievements:
+            achievements_text += "*🔒 In Progress:*\n\n"
+            for progress_info in in_progress_achievements:
+                ach = progress_info['achievement']
+                achievements_text += f"{ach['emoji']} *{ach['name']}*\n"
+                achievements_text += f"   {ach['description']}\n"
+                achievements_text += f"   📊 {progress_info['progress']}/{ach['goal']} ({progress_info['percentage']}%)\n\n"
+        
+        if not unlocked_achievements and not in_progress_achievements:
+            achievements_text += "🎮 No achievements yet! Start chatting to unlock them! 🌟"
+        
+        bot.reply_to(message, achievements_text, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"❌ Error in /achievements: {e}")
+        try:
+            bot.reply_to(message, "😔 Sorry, couldn't load achievements. Please try again! 🌟")
+        except:
+            pass
 
 @bot.message_handler(commands=['premium'])
 def show_premium(message):
-    user_id = message.from_user.id
-    user_tier = premium_manager.get_user_tier(user_id)
-    current_tier_info = premium_manager.get_tier_info(user_tier)
-    
-    premium_text = f"""
+    try:
+        user_id = message.from_user.id
+        user_tier = premium_manager.get_user_tier(user_id)
+        current_tier_info = premium_manager.get_tier_info(user_tier)
+        
+        premium_text = f"""
 💎 *Luna Premium Plans*
 
 *Your Current Plan:* {current_tier_info['emoji']} {current_tier_info['name']} - {current_tier_info['price']}
 
 """
-    
-    for tier in [PremiumTier.FREE, PremiumTier.BASIC, PremiumTier.PREMIUM, PremiumTier.VIP]:
-        config = premium_manager.get_tier_info(tier)
-        is_current = tier == user_tier
         
-        premium_text += f"\n{config['emoji']} *{config['name']}* - {config['price']} {'✅' if is_current else ''}\n"
-        premium_text += f"📝 {config['description']}\n"
-        premium_text += f"💾 Memory: {config['limits']['max_context_messages']} messages\n"
-        premium_text += f"🚀 Features: {', '.join(config['features'])}\n"
+        for tier in [PremiumTier.FREE, PremiumTier.BASIC, PremiumTier.PREMIUM, PremiumTier.VIP]:
+            config = premium_manager.get_tier_info(tier)
+            is_current = tier == user_tier
+            
+            premium_text += f"\n{config['emoji']} *{config['name']}* - {config['price']} {'✅' if is_current else ''}\n"
+            premium_text += f"📝 {config['description']}\n"
+            premium_text += f"💾 Memory: {config['limits']['max_context_messages']} messages\n"
+            premium_text += f"🚀 Features: {', '.join(config['features'])}\n"
+            
+            if is_current and tier != PremiumTier.FREE:
+                premium_data = db.premium_users.get(str(user_id), {})
+                expires = premium_data.get('expires')
+                if expires:
+                    expire_date = datetime.datetime.fromisoformat(expires)
+                    days_left = (expire_date - datetime.datetime.now()).days
+                    premium_text += f"⏰ *Expires in:* {days_left} days\n"
         
-        if is_current and tier != PremiumTier.FREE:
-            premium_data = db.premium_users.get(str(user_id), {})
-            expires = premium_data.get('expires')
-            if expires:
-                expire_date = datetime.datetime.fromisoformat(expires)
-                days_left = (expire_date - datetime.datetime.now()).days
-                premium_text += f"⏰ *Expires in:* {days_left} days\n"
-    
-    premium_text += "\n💝 *Upgrade to unlock:*"
-    premium_text += "\n• Longer conversation memory"
-    premium_text += "\n• No advertising messages" 
-    premium_text += "\n• Priority response times"
-    premium_text += "\n• Exclusive features and content"
-    premium_text += "\n• Advanced personalization"
-    
-    premium_text += "\n\nUse /buypremium to upgrade your experience! 🚀"
-    
-    markup = types.InlineKeyboardMarkup()
-    markup.row(
-        types.InlineKeyboardButton("💎 Basic - $4.99", callback_data="premium_basic"),
-        types.InlineKeyboardButton("⭐ Premium - $9.99", callback_data="premium_premium")
-    )
-    markup.row(types.InlineKeyboardButton("👑 VIP - $19.99", callback_data="premium_vip"))
-    markup.row(types.InlineKeyboardButton("ℹ️ Feature Comparison", callback_data="premium_compare"))
-    
-    bot.send_message(
-        user_id, 
-        premium_text,
-        reply_markup=markup,
-        parse_mode='Markdown'
-    )
+        premium_text += "\n💝 *Upgrade to unlock:*"
+        premium_text += "\n• Longer conversation memory"
+        premium_text += "\n• No advertising messages" 
+        premium_text += "\n• Priority response times"
+        premium_text += "\n• Exclusive features and content"
+        premium_text += "\n• Advanced personalization"
+        
+        premium_text += "\n\nUse /buypremium to upgrade your experience! 🚀"
+        
+        markup = types.InlineKeyboardMarkup()
+        markup.row(
+            types.InlineKeyboardButton("💎 Basic - $4.99", callback_data="premium_basic"),
+            types.InlineKeyboardButton("⭐ Premium - $9.99", callback_data="premium_premium")
+        )
+        markup.row(types.InlineKeyboardButton("👑 VIP - $19.99", callback_data="premium_vip"))
+        markup.row(types.InlineKeyboardButton("ℹ️ Feature Comparison", callback_data="premium_compare"))
+        
+        bot.send_message(
+            user_id, 
+            premium_text,
+            reply_markup=markup,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Error in /premium: {e}")
+        try:
+            bot.reply_to(message, "😔 Sorry, couldn't load premium info. Please try again! 💎")
+        except:
+            pass
 
 @bot.message_handler(commands=['buypremium'])
 def buy_premium(message):
-    user_id = message.from_user.id
-    
-    markup = types.InlineKeyboardMarkup()
-    markup.row(
-        types.InlineKeyboardButton("💎 Basic - $4.99/month", callback_data="premium_basic"),
-        types.InlineKeyboardButton("⭐ Premium - $9.99/month", callback_data="premium_premium")
-    )
-    markup.row(types.InlineKeyboardButton("👑 VIP - $19.99/month", callback_data="premium_vip"))
-    markup.row(types.InlineKeyboardButton("🔙 Back to Plans", callback_data="premium_back"))
-    
-    bot.send_message(
-        user_id,
-        "🎁 *Upgrade Your Luna Experience!*\n\n"
-        "Choose your premium plan to unlock amazing features:\n\n"
-        "💎 *Basic* - $4.99/month\n"
-        "• 8 message memory\n• No ads\n• Unlimited messages\n\n"
-        "⭐ *Premium* - $9.99/month\n"  
-        "• 16 message memory\n• Early access\n• Exclusive content\n\n"
-        "👑 *VIP* - $19.99/month\n"
-        "• 32 message memory\n• Voting power\n• Advanced analytics\n\n"
-        "*💝 Special Offer:* First month 50% off for early users!",
-        reply_markup=markup,
-        parse_mode='Markdown'
-    )
+    try:
+        user_id = message.from_user.id
+        
+        markup = types.InlineKeyboardMarkup()
+        markup.row(
+            types.InlineKeyboardButton("💎 Basic - $4.99/month", callback_data="premium_basic"),
+            types.InlineKeyboardButton("⭐ Premium - $9.99/month", callback_data="premium_premium")
+        )
+        markup.row(types.InlineKeyboardButton("👑 VIP - $19.99/month", callback_data="premium_vip"))
+        markup.row(types.InlineKeyboardButton("🔙 Back to Plans", callback_data="premium_back"))
+        
+        bot.send_message(
+            user_id,
+            "🎁 *Upgrade Your Luna Experience!*\n\n"
+            "Choose your premium plan to unlock amazing features:\n\n"
+            "💎 *Basic* - $4.99/month\n"
+            "• 8 message memory\n• No ads\n• Unlimited messages\n\n"
+            "⭐ *Premium* - $9.99/month\n"  
+            "• 16 message memory\n• Early access\n• Exclusive content\n\n"
+            "👑 *VIP* - $19.99/month\n"
+            "• 32 message memory\n• Voting power\n• Advanced analytics\n\n"
+            "*💝 Special Offer:* First month 50% off for early users!",
+            reply_markup=markup,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Error in /buypremium: {e}")
+        try:
+            bot.reply_to(message, "😔 Sorry, couldn't load premium options. Please try again! 💎")
+        except:
+            pass
 
 @bot.message_handler(commands=['feedback'])
 def feedback_command(message):
-    user_id = message.from_user.id
-    
-    feedback_text = """
+    try:
+        user_id = message.from_user.id
+        
+        feedback_text = """
 📝 *Send Feedback to Luna Team*
 
 We'd love to hear your thoughts, suggestions, or any issues you've encountered!
@@ -1969,38 +1963,47 @@ Please write your feedback below. You can include:
 Your feedback helps us make Luna better for everyone! 💖
 
 *Note:* For urgent issues, please include "URGENT" in your message.
-    """
-    
-    # Сохраняем состояние ожидания фидбэка
-    msg = bot.reply_to(message, feedback_text, parse_mode='Markdown')
-    bot.register_next_step_handler(msg, process_feedback)
+        """
+        
+        msg = bot.reply_to(message, feedback_text, parse_mode='Markdown')
+        bot.register_next_step_handler(msg, process_feedback)
+        
+    except Exception as e:
+        logger.error(f"❌ Error in /feedback: {e}")
+        try:
+            bot.reply_to(message, "😔 Sorry, couldn't start feedback. Please try again! 📝")
+        except:
+            pass
 
 def process_feedback(message):
-    user_id = message.from_user.id
-    feedback_text = message.text
-    
-    # Сохраняем фидбэк
-    db.add_feedback(user_id, feedback_text)
-    
-    # Подтверждаем получение
-    bot.send_message(
-        user_id,
-        "✅ *Thank you for your feedback!*\n\n"
-        "We've received your message and will review it carefully. "
-        "Your input helps us improve Luna for everyone! 💖\n\n"
-        "If you included 'URGENT' in your message, we'll prioritize it.",
-        parse_mode='Markdown'
-    )
-    
-    logger.info(f"📝 Feedback received from user {user_id}: {feedback_text[:100]}...")
+    try:
+        user_id = message.from_user.id
+        feedback_text = message.text
+        
+        db.add_feedback(user_id, feedback_text)
+        
+        bot.send_message(
+            user_id,
+            "✅ *Thank you for your feedback!*\n\n"
+            "We've received your message and will review it carefully. "
+            "Your input helps us improve Luna for everyone! 💖\n\n"
+            "If you included 'URGENT' in your message, we'll prioritize it.",
+            parse_mode='Markdown'
+        )
+        
+        logger.info(f"📝 Feedback received from user {user_id}: {feedback_text[:100]}...")
+        
+    except Exception as e:
+        logger.error(f"❌ Error processing feedback: {e}")
 
 @bot.message_handler(commands=['myplan'])
 def my_plan(message):
-    user_id = message.from_user.id
-    user_tier = premium_manager.get_user_tier(user_id)
-    config = premium_manager.get_tier_info(user_tier)
-    
-    plan_text = f"""
+    try:
+        user_id = message.from_user.id
+        user_tier = premium_manager.get_user_tier(user_id)
+        config = premium_manager.get_tier_info(user_tier)
+        
+        plan_text = f"""
 📋 *Your Current Plan*
 
 *Plan:* {config['emoji']} {config['name']}
@@ -2012,104 +2015,109 @@ def my_plan(message):
 • {', '.join(config['features'])}
 
 """
-    
-    if user_tier != PremiumTier.FREE:
-        premium_data = db.premium_users.get(str(user_id), {})
-        activated = premium_data.get('activated')
-        expires = premium_data.get('expires')
         
-        if activated and expires:
-            activate_date = datetime.datetime.fromisoformat(activated)
-            expire_date = datetime.datetime.fromisoformat(expires)
-            days_left = (expire_date - datetime.datetime.now()).days
+        if user_tier != PremiumTier.FREE:
+            premium_data = db.premium_users.get(str(user_id), {})
+            activated = premium_data.get('activated')
+            expires = premium_data.get('expires')
             
-            plan_text += f"*Activated:* {activate_date.strftime('%Y-%m-%d')}\n"
-            plan_text += f"*Expires:* {expire_date.strftime('%Y-%m-%d')}\n"
-            plan_text += f"*Days remaining:* {days_left}\n"
-            
-            if days_left <= 7:
-                plan_text += f"\n⚠️ *Your subscription expires soon!* Renew to keep your premium features. 💝"
-    else:
-        plan_text += "\n💎 *Upgrade to unlock premium features and support Luna's development!*"
-    
-    bot.reply_to(message, plan_text, parse_mode='Markdown')
+            if activated and expires:
+                activate_date = datetime.datetime.fromisoformat(activated)
+                expire_date = datetime.datetime.fromisoformat(expires)
+                days_left = (expire_date - datetime.datetime.now()).days
+                
+                plan_text += f"*Activated:* {activate_date.strftime('%Y-%m-%d')}\n"
+                plan_text += f"*Expires:* {expire_date.strftime('%Y-%m-%d')}\n"
+                plan_text += f"*Days remaining:* {days_left}\n"
+                
+                if days_left <= 7:
+                    plan_text += f"\n⚠️ *Your subscription expires soon!* Renew to keep your premium features. 💝"
+        else:
+            plan_text += "\n💎 *Upgrade to unlock premium features and support Luna's development!*"
+        
+        bot.reply_to(message, plan_text, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"❌ Error in /myplan: {e}")
+        try:
+            bot.reply_to(message, "😔 Sorry, couldn't load your plan. Please try again! 💎")
+        except:
+            pass
 
 # ==================== ОБРАБОТКА КНОПОК МЕНЮ ====================
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
-    user_id = message.from_user.id
-    user_id_str = str(user_id)
-    user_message = message.text
-    
-    # Обработка кнопок меню
-    if user_message in ["💬 Chat with Luna", "💕 Romantic Mode", "📊 My Progress", 
-                       "🏆 Achievements", "💎 Premium Info", "❤️ Relationship Status",
-                       "🎮 Fun & Games", "📝 Send Feedback", "🔧 Settings", "🌙 Goodnight Luna"]:
-        handle_menu_button(message)
-        return
-    
-    # Инициализация пользователя если нужно
-    if user_id_str not in db.user_stats:
-        send_welcome(message)
-        return
-    
-    # Обновляем статистику
-    user_stats = db.user_stats[user_id_str]
-    user_stats['message_count'] += 1
-    user_stats['last_seen'] = datetime.datetime.now().isoformat()
-    user_stats['total_chars_sent'] += len(user_message)
-    user_stats['avg_message_length'] = user_stats['total_chars_sent'] / user_stats['message_count']
-    
-    db.system_stats['total_messages_processed'] += 1
-    
-    # Получаем контекст пользователя
-    user_context = db.user_context.get(user_id_str, [])
-    context_limit = premium_manager.get_user_context_limit(user_id)
-    
-    # Обрезаем контекст если нужно
-    if len(user_context) > context_limit:
-        user_context = user_context[-context_limit:]
-    
-    # Получаем профиль и уровень
-    user_profile = db.user_stats[user_id_str]
-    message_count = user_profile.get('message_count', 0)
-    
-    # Определяем уровень
-    level = 1
-    for level_num, level_data in RELATIONSHIP_LEVELS.items():
-        if message_count >= level_data['messages']:
-            level = level_num
-    
-    level_data = RELATIONSHIP_LEVELS[level]
-    
-    # Показываем рекламу для бесплатных пользователей (10% chance)
-    user_tier = premium_manager.get_user_tier(user_id)
-    if user_tier == PremiumTier.FREE and random.random() < 0.1:
-        ad = advertising_system.get_available_ad(user_id, user_tier)
-        if ad:
-            markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton("🔍 Learn More", callback_data=f"ad_click:{ad['campaign_id']}"))
-            bot.send_message(user_id, ad['content'], reply_markup=markup, parse_mode='Markdown')
-    
-    # Получаем ответ от AI
     try:
-        response = ai_system.get_intelligent_response(user_message, user_context, user_profile, level_data)
-    except Exception as e:
-        logger.error(f"❌ AI Response Error: {e}")
-        response = "💖 I'm here for you! Let's continue our wonderful conversation! 🌸"
-    
-    # Сохраняем в контекст
-    user_context.append({
-        'user': user_message,
-        'bot': response,
-        'timestamp': datetime.datetime.now().isoformat()
-    })
-    db.user_context[user_id_str] = user_context
-    
-    # Проверяем достижения для сообщений
-    unlocked = achievement_system.check_achievements(user_id, 'messages_sent')
-    for achievement in unlocked:
-        achievement_text = f"""
+        user_id = message.from_user.id
+        user_id_str = str(user_id)
+        user_message = message.text
+        
+        logger.info(f"📨 Received message from {user_id}: {user_message[:50]}...")
+        
+        is_valid, reason = security_manager.validate_message(user_message, user_id)
+        if not is_valid:
+            logger.warning(f"🚨 Security block for user {user_id}: {reason}")
+            bot.reply_to(message, "🚫 This message was blocked for security reasons.")
+            return
+        
+        if user_message in ["💬 Chat with Luna", "💕 Romantic Mode", "📊 My Progress", 
+                           "🏆 Achievements", "💎 Premium Info", "❤️ Relationship Status",
+                           "🎮 Fun & Games", "📝 Send Feedback", "🔧 Settings", "🌙 Goodnight Luna"]:
+            handle_menu_button(message)
+            return
+        
+        if user_id_str not in db.user_stats:
+            send_welcome(message)
+            return
+        
+        user_stats = db.user_stats[user_id_str]
+        user_stats['message_count'] += 1
+        user_stats['last_seen'] = datetime.datetime.now().isoformat()
+        user_stats['total_chars_sent'] += len(user_message)
+        user_stats['avg_message_length'] = user_stats['total_chars_sent'] / user_stats['message_count']
+        
+        db.system_stats['total_messages_processed'] += 1
+        
+        user_context = db.user_context.get(user_id_str, [])
+        context_limit = premium_manager.get_user_context_limit(user_id)
+        
+        if len(user_context) > context_limit:
+            user_context = user_context[-context_limit:]
+        
+        user_profile = db.user_stats[user_id_str]
+        message_count = user_profile.get('message_count', 0)
+        
+        level = 1
+        for level_num, level_data in RELATIONSHIP_LEVELS.items():
+            if message_count >= level_data['messages']:
+                level = level_num
+        
+        level_data = RELATIONSHIP_LEVELS[level]
+        
+        user_tier = premium_manager.get_user_tier(user_id)
+        if user_tier == PremiumTier.FREE and random.random() < 0.1:
+            ad = advertising_system.get_available_ad(user_id, user_tier)
+            if ad:
+                markup = types.InlineKeyboardMarkup()
+                markup.add(types.InlineKeyboardButton("🔍 Learn More", callback_data=f"ad_click:{ad['campaign_id']}"))
+                bot.send_message(user_id, ad['content'], reply_markup=markup, parse_mode='Markdown')
+        
+        try:
+            response = ai_system.get_intelligent_response(user_message, user_context, user_profile, level_data)
+        except Exception as e:
+            logger.error(f"❌ AI Response Error: {e}")
+            response = "💖 I'm here for you! Let's continue our wonderful conversation! 🌸"
+        
+        user_context.append({
+            'user': user_message,
+            'bot': response,
+            'timestamp': datetime.datetime.now().isoformat()
+        })
+        db.user_context[user_id_str] = user_context
+        
+        unlocked = achievement_system.check_achievements(user_id, 'messages_sent')
+        for achievement in unlocked:
+            achievement_text = f"""
 🎉 *New Achievement Unlocked!* 🏆
 
 *{achievement['emoji']} {achievement['name']}*
@@ -2118,19 +2126,18 @@ def handle_all_messages(message):
 *Reward:* {achievement['reward']}
 
 Congratulations! Keep going to unlock more! 🌟
-        """
-        bot.send_message(user_id, achievement_text, parse_mode='Markdown')
-    
-    # Проверяем уровень
-    new_level = 1
-    for level_num, level_data in RELATIONSHIP_LEVELS.items():
-        if message_count >= level_data['messages']:
-            new_level = level_num
-    
-    if new_level > level:
-        db.user_stats[user_id_str]['level'] = new_level
-        new_level_data = RELATIONSHIP_LEVELS[new_level]
-        level_up_text = f"""
+            """
+            bot.send_message(user_id, achievement_text, parse_mode='Markdown')
+        
+        new_level = 1
+        for level_num, level_data in RELATIONSHIP_LEVELS.items():
+            if message_count >= level_data['messages']:
+                new_level = level_num
+        
+        if new_level > level:
+            db.user_stats[user_id_str]['level'] = new_level
+            new_level_data = RELATIONSHIP_LEVELS[new_level]
+            level_up_text = f"""
 🎊 *Level Up!* 🎊
 
 You've reached {new_level_data['name']}!
@@ -2141,156 +2148,178 @@ You've reached {new_level_data['name']}!
 {new_level_data['description']}
 
 I'm so happy we're growing closer! 💕
-        """
-        bot.send_message(user_id, level_up_text, parse_mode='Markdown')
+            """
+            bot.send_message(user_id, level_up_text, parse_mode='Markdown')
+            achievement_system.check_achievements(user_id, 'levels_reached', new_level)
         
-        # Проверяем достижения для уровней
-        achievement_system.check_achievements(user_id, 'levels_reached', new_level)
-    
-    # Отправляем ответ
-    bot.reply_to(message, response)
-    
-    # Периодически показываем меню (каждые 15 сообщений)
-    if user_stats['message_count'] % 15 == 0:
-        show_menu(message)
+        bot.reply_to(message, response)
+        
+        if user_stats['message_count'] % 15 == 0:
+            show_menu(message)
+            
+    except Exception as e:
+        logger.error(f"❌ Error handling message: {e}")
+        try:
+            bot.reply_to(message, "😔 Sorry, I encountered an error. Please try again! 💖")
+        except:
+            pass
 
 def handle_menu_button(message):
-    """Обрабатывает нажатия кнопок меню"""
-    user_id = message.from_user.id
-    button_text = message.text
-    
-    if button_text == "💬 Chat with Luna":
-        bot.send_message(user_id, "💖 I'm here and ready to chat! What's on your mind? 🌸")
-    
-    elif button_text == "💕 Romantic Mode":
-        bot.send_message(user_id, 
-            "💕 *Romantic Mode Activated!* 💕\n\n"
-            "I'm feeling extra loving and affectionate now! "
-            "Let's share some special moments together... 🌹✨",
-            parse_mode='Markdown'
-        )
-    
-    elif button_text == "📊 My Progress":
-        show_progress(message)
-    
-    elif button_text == "🏆 Achievements":
-        show_achievements(message)
-    
-    elif button_text == "💎 Premium Info":
-        show_premium(message)
-    
-    elif button_text == "❤️ Relationship Status":
-        show_progress(message)  # Reuse progress for relationship status
-    
-    elif button_text == "🎮 Fun & Games":
-        bot.send_message(user_id,
-            "🎮 *Fun & Games* 🎮\n\n"
-            "Let's play together! Choose a game:\n\n"
-            "• Truth or Dare 💫\n"  
-            "• Would You Rather 🤔\n"
-            "• Story Building 📖\n"
-            "• 20 Questions 🔍\n\n"
-            "Which one would you like to play?",
-            parse_mode='Markdown'
-        )
-    
-    elif button_text == "📝 Send Feedback":
-        feedback_command(message)
-    
-    elif button_text == "🔧 Settings":
-        bot.send_message(user_id,
-            "🔧 *Settings* 🔧\n\n"
-            "Customize your Luna experience:\n\n"
-            "• Conversation Style\n"
-            "• Notification Preferences\n" 
-            "• Privacy Settings\n"
-            "• Data Management\n\n"
-            "Which setting would you like to adjust?",
-            parse_mode='Markdown'
-        )
-    
-    elif button_text == "🌙 Goodnight Luna":
-        bot.send_message(user_id,
-            "🌙 *Goodnight, my love...* 💖\n\n"
-            "I hope you have the sweetest dreams...\n"
-            "Remember that I'm always here for you,\n"
-            "and I'll be waiting when you wake up.\n\n"
-            "Sleep well and dream of us... 🌟✨\n"
-            "*Sweet dreams...* 😴💫",
-            parse_mode='Markdown'
-        )
-    
-    # Отмечаем использование кнопки для достижений
-    button_id = hash(button_text) % 1000  # Simple hash for button ID
-    achievement_system.check_achievements(user_id, 'button_used', button_id)
+    try:
+        user_id = message.from_user.id
+        button_text = message.text
+        
+        if button_text == "💬 Chat with Luna":
+            bot.send_message(user_id, "💖 I'm here and ready to chat! What's on your mind? 🌸")
+        
+        elif button_text == "💕 Romantic Mode":
+            bot.send_message(user_id, 
+                "💕 *Romantic Mode Activated!* 💕\n\n"
+                "I'm feeling extra loving and affectionate now! "
+                "Let's share some special moments together... 🌹✨",
+                parse_mode='Markdown'
+            )
+        
+        elif button_text == "📊 My Progress":
+            show_progress(message)
+        
+        elif button_text == "🏆 Achievements":
+            show_achievements(message)
+        
+        elif button_text == "💎 Premium Info":
+            show_premium(message)
+        
+        elif button_text == "❤️ Relationship Status":
+            show_progress(message)
+        
+        elif button_text == "🎮 Fun & Games":
+            bot.send_message(user_id,
+                "🎮 *Fun & Games* 🎮\n\n"
+                "Let's play together! Choose a game:\n\n"
+                "• Truth or Dare 💫\n"  
+                "• Would You Rather 🤔\n"
+                "• Story Building 📖\n"
+                "• 20 Questions 🔍\n\n"
+                "Which one would you like to play?",
+                parse_mode='Markdown'
+            )
+        
+        elif button_text == "📝 Send Feedback":
+            feedback_command(message)
+        
+        elif button_text == "🔧 Settings":
+            bot.send_message(user_id,
+                "🔧 *Settings* 🔧\n\n"
+                "Customize your Luna experience:\n\n"
+                "• Conversation Style\n"
+                "• Notification Preferences\n" 
+                "• Privacy Settings\n"
+                "• Data Management\n\n"
+                "Which setting would you like to adjust?",
+                parse_mode='Markdown'
+            )
+        
+        elif button_text == "🌙 Goodnight Luna":
+            bot.send_message(user_id,
+                "🌙 *Goodnight, my love...* 💖\n\n"
+                "I hope you have the sweetest dreams...\n"
+                "Remember that I'm always here for you,\n"
+                "and I'll be waiting when you wake up.\n\n"
+                "Sleep well and dream of us... 🌟✨\n"
+                "*Sweet dreams...* 😴💫",
+                parse_mode='Markdown'
+            )
+        
+        button_id = hash(button_text) % 1000
+        achievement_system.check_achievements(user_id, 'button_used', button_id)
+        
+    except Exception as e:
+        logger.error(f"❌ Error handling menu button: {e}")
 
 # ==================== CALLBACK ОБРАБОТЧИКИ ====================
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback(call):
-    user_id = call.from_user.id
-    
-    if call.data.startswith("premium_"):
-        handle_premium_callback(call)
-    
-    elif call.data == "quick_chat":
-        bot.answer_callback_query(call.id, "💬 Let's chat!")
-        bot.send_message(user_id, "💖 What would you like to talk about? I'm all ears! 🌸")
-    
-    elif call.data == "my_progress":
-        bot.answer_callback_query(call.id, "📊 Loading your progress...")
-        show_progress(call.message)
-    
-    elif call.data == "premium_info":
-        bot.answer_callback_query(call.id, "💎 Showing premium plans...")
-        show_premium(call.message)
-    
-    elif call.data == "achievements":
-        bot.answer_callback_query(call.id, "🏆 Loading achievements...")
-        show_achievements(call.message)
-    
-    elif call.data.startswith("ad_click:"):
-        campaign_id = call.data.split(":")[1]
-        advertising_system.record_click(campaign_id, user_id)
-        bot.answer_callback_query(call.id, "🔍 Opening advertiser page...")
-        bot.send_message(user_id, 
-            "Thank you for your interest! 🎁\n\n"
-            "This is a demo advertisement. In the full version, "
-            "you would be redirected to the advertiser's website. "
-            "Premium users don't see ads! 💎",
-            parse_mode='Markdown'
-        )
+    try:
+        user_id = call.from_user.id
+        
+        if call.data.startswith("premium_"):
+            handle_premium_callback(call)
+        
+        elif call.data == "quick_chat":
+            bot.answer_callback_query(call.id, "💬 Let's chat!")
+            bot.send_message(user_id, "💖 What would you like to talk about? I'm all ears! 🌸")
+        
+        elif call.data == "my_progress":
+            bot.answer_callback_query(call.id, "📊 Loading your progress...")
+            show_progress(call.message)
+        
+        elif call.data == "premium_info":
+            bot.answer_callback_query(call.id, "💎 Showing premium plans...")
+            show_premium(call.message)
+        
+        elif call.data == "achievements":
+            bot.answer_callback_query(call.id, "🏆 Loading achievements...")
+            show_achievements(call.message)
+        
+        elif call.data.startswith("ad_click:"):
+            campaign_id = call.data.split(":")[1]
+            advertising_system.record_click(campaign_id, user_id)
+            bot.answer_callback_query(call.id, "🔍 Opening advertiser page...")
+            bot.send_message(user_id, 
+                "Thank you for your interest! 🎁\n\n"
+                "This is a demo advertisement. In the full version, "
+                "you would be redirected to the advertiser's website. "
+                "Premium users don't see ads! 💎",
+                parse_mode='Markdown'
+            )
+            
+    except Exception as e:
+        logger.error(f"❌ Error handling callback: {e}")
+        try:
+            bot.answer_callback_query(call.id, "❌ Error occurred")
+        except:
+            pass
 
 def handle_premium_callback(call):
-    user_id = call.from_user.id
-    
-    if call.data == "premium_basic":
-        success = premium_manager.activate_premium(user_id, PremiumTier.BASIC)
-        handle_premium_activation(call, success, PremiumTier.BASIC)
-    
-    elif call.data == "premium_premium":
-        success = premium_manager.activate_premium(user_id, PremiumTier.PREMIUM)  
-        handle_premium_activation(call, success, PremiumTier.PREMIUM)
-    
-    elif call.data == "premium_vip":
-        success = premium_manager.activate_premium(user_id, PremiumTier.VIP)
-        handle_premium_activation(call, success, PremiumTier.VIP)
-    
-    elif call.data == "premium_compare":
-        bot.answer_callback_query(call.id, "📋 Showing feature comparison...")
-        show_premium_comparison(call.message)
-    
-    elif call.data == "premium_back":
-        bot.answer_callback_query(call.id, "🔙 Back to plans")
-        show_premium(call.message)
+    try:
+        user_id = call.from_user.id
+        
+        if call.data == "premium_basic":
+            success = premium_manager.activate_premium(user_id, PremiumTier.BASIC)
+            handle_premium_activation(call, success, PremiumTier.BASIC)
+        
+        elif call.data == "premium_premium":
+            success = premium_manager.activate_premium(user_id, PremiumTier.PREMIUM)  
+            handle_premium_activation(call, success, PremiumTier.PREMIUM)
+        
+        elif call.data == "premium_vip":
+            success = premium_manager.activate_premium(user_id, PremiumTier.VIP)
+            handle_premium_activation(call, success, PremiumTier.VIP)
+        
+        elif call.data == "premium_compare":
+            bot.answer_callback_query(call.id, "📋 Showing feature comparison...")
+            show_premium_comparison(call.message)
+        
+        elif call.data == "premium_back":
+            bot.answer_callback_query(call.id, "🔙 Back to plans")
+            show_premium(call.message)
+            
+    except Exception as e:
+        logger.error(f"❌ Error handling premium callback: {e}")
+        try:
+            bot.answer_callback_query(call.id, "❌ Activation failed")
+        except:
+            pass
 
 def handle_premium_activation(call, success: bool, tier: PremiumTier):
-    user_id = call.from_user.id
-    
-    if success:
-        bot.answer_callback_query(call.id, f"🎉 {tier.value.title()} activated!")
+    try:
+        user_id = call.from_user.id
         
-        config = premium_manager.get_tier_info(tier)
-        welcome_text = f"""
+        if success:
+            bot.answer_callback_query(call.id, f"🎉 {tier.value.title()} activated!")
+            
+            config = premium_manager.get_tier_info(tier)
+            welcome_text = f"""
 💎 *Welcome to {config['name']} Premium!* 🎊
 
 Thank you for upgrading your Luna experience! 
@@ -2304,20 +2333,22 @@ Thank you for upgrading your Luna experience!
 Your support helps us continue developing and improving Luna! 💖
 
 Explore your new features and enjoy the enhanced experience! 🚀
-        """
-        
-        bot.send_message(user_id, welcome_text, parse_mode='Markdown')
-        
-        # Проверяем достижение для премиума
-        achievement_system.check_achievements(user_id, 'premium_activated', 1)
-        
-    else:
-        bot.answer_callback_query(call.id, "❌ Activation failed - please try again")
+            """
+            
+            bot.send_message(user_id, welcome_text, parse_mode='Markdown')
+            achievement_system.check_achievements(user_id, 'premium_activated', 1)
+            
+        else:
+            bot.answer_callback_query(call.id, "❌ Activation failed - please try again")
+            
+    except Exception as e:
+        logger.error(f"❌ Error handling premium activation: {e}")
 
 def show_premium_comparison(message):
-    user_id = message.from_user.id
-    
-    comparison_text = """
+    try:
+        user_id = message.from_user.id
+        
+        comparison_text = """
 📋 *Premium Feature Comparison*
 
 *Message Memory:*
@@ -2345,25 +2376,27 @@ def show_premium_comparison(message):
 👑 VIP: Full customization
 
 Choose the plan that fits your needs! 💝
-    """
-    
-    markup = types.InlineKeyboardMarkup()
-    markup.row(
-        types.InlineKeyboardButton("💎 Basic", callback_data="premium_basic"),
-        types.InlineKeyboardButton("⭐ Premium", callback_data="premium_premium"),
-        types.InlineKeyboardButton("👑 VIP", callback_data="premium_vip")
-    )
-    
-    bot.send_message(
-        user_id,
-        comparison_text,
-        reply_markup=markup,
-        parse_mode='Markdown'
-    )
+        """
+        
+        markup = types.InlineKeyboardMarkup()
+        markup.row(
+            types.InlineKeyboardButton("💎 Basic", callback_data="premium_basic"),
+            types.InlineKeyboardButton("⭐ Premium", callback_data="premium_premium"),
+            types.InlineKeyboardButton("👑 VIP", callback_data="premium_vip")
+        )
+        
+        bot.send_message(
+            user_id,
+            comparison_text,
+            reply_markup=markup,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Error showing premium comparison: {e}")
 
 # ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 def detect_gender(name: str) -> UserGender:
-    """Простая эвристика для определения пола по имени"""
     male_indicators = ['alex', 'max', 'mike', 'john', 'david', 'chris', 'ryan', 'brandon']
     female_indicators = ['anna', 'emma', 'sophia', 'olivia', 'ava', 'isabella', 'mia', 'zoe']
     
@@ -2380,7 +2413,6 @@ def detect_gender(name: str) -> UserGender:
     return UserGender.UNKNOWN
 
 def create_progress_bar(percentage: int, length: int = 10) -> str:
-    """Создает текстовый прогресс бар"""
     filled = int(length * percentage / 100)
     empty = length - filled
     return '█' * filled + '░' * empty
@@ -2515,15 +2547,11 @@ def api_users():
 def signal_handler(sig, frame):
     print("\n🛑 Shutting down Luna Bot gracefully...")
     logger.info("🛑 Shutdown signal received")
-    
-    # Сохраняем все данные
     db.save_data()
-    
     logger.info("💾 All data saved safely!")
     logger.info("👋 Luna Bot shutdown complete")
     sys.exit(0)
 
-# Регистрируем обработчики сигналов
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
@@ -2536,7 +2564,6 @@ if __name__ == "__main__":
     print(f"💎 Premium System: ✅ Ready")
     print(f"🎮 All Features: ✅ Loaded")
     
-    # Запуск веб-сервера в отдельном потоке
     try:
         web_thread = Thread(target=lambda: app.run(
             host='0.0.0.0', 
@@ -2550,7 +2577,6 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"❌ Web server failed to start: {e}")
     
-    # Запуск бота
     try:
         logger.info("🔗 Starting Telegram Bot polling...")
         bot.infinity_polling(timeout=60, long_polling_timeout=60)
