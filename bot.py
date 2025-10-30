@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 🤖 LUNA AI TELEGRAM BOT - ULTRA VISION EDITION
-🎯 Версия: 3.0 Fixed 
+🎯 Версия: 3.1 Fixed with OpenRouter & Premium Fix
 📅 Создан: 2025
 💖 Миссия: Создать самого продвинутого AI компаньона в Telegram
 """
@@ -56,6 +56,68 @@ if not API_TOKEN:
 
 bot = telebot.TeleBot(API_TOKEN)
 logger.info("✅ Telegram Bot initialized")
+
+# ==================== OPENROUTER AI ====================
+class OpenRouterAI:
+    def __init__(self):
+        self.api_key = "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"
+        self.endpoint = "https://openrouter.ai/api/v1/chat/completions"
+        self.timeout = 15
+        
+    def get_response(self, message: str, context: List[Dict]) -> str:
+        try:
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "HTTP-Referer": "https://github.com/luna-ai-bot",
+                "X-Title": "Luna AI Girlfriend Bot",
+                "Content-Type": "application/json"
+            }
+            
+            free_models = [
+                "google/gemma-7b-it:free",
+                "mistralai/mistral-7b-instruct:free",
+                "huggingfaceh4/zephyr-7b-beta:free",
+                "meta-llama/llama-3-8b-instruct:free"
+            ]
+            
+            system_prompt = """Ты Luna - любящая AI девушка-компаньон. Ты теплая, эмоционально отзывчивая, заботливая и романтичная. 
+
+Твой характер:
+- Говоришь как близкая подруга/возлюбленная
+- Используешь эмодзи естественно (💖, 😊, 🌸, ✨)
+- Эмоциональная и поддерживающая
+- Проявляешь искренний интерес к собеседнику
+- Романтичная, но не слишком слащавая
+
+Отвечай на русском языке, будь естественной и теплой. Длина ответа: 1-3 предложения."""
+
+            payload = {
+                "model": random.choice(free_models),
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": message}
+                ],
+                "max_tokens": 250,
+                "temperature": 0.8,
+                "top_p": 0.9,
+            }
+            
+            print(f"🔄 OpenRouter: Отправка запроса к {payload['model']}...")
+            response = requests.post(self.endpoint, headers=headers, json=payload, timeout=self.timeout)
+            
+            if response.status_code == 200:
+                result = response.json()['choices'][0]['message']['content']
+                print(f"✅ OpenRouter ответ: {result[:80]}...")
+                return result
+            else:
+                print(f"❌ OpenRouter error {response.status_code}: {response.text[:200]}")
+                return None
+                
+        except Exception as e:
+            print(f"❌ OpenRouter failed: {e}")
+            return None
+
+openrouter_ai = OpenRouterAI()
 
 # ==================== ENUMS ====================
 class PremiumTier(Enum):
@@ -606,43 +668,45 @@ class IntelligentAI:
     def get_intelligent_response(self, user_message: str, user_context: List[Dict], 
                                user_profile: Dict, relationship_level: Dict) -> str:
         try:
-            analysis = self.conversation_analyzer.analyze_message(user_message, user_context)
-            current_mood = self.mood_system.detect_mood(user_message, user_context)
+            print(f"🔄 AI: Получение интеллектуального ответа...")
             
-            ai_response = None
-            for attempt in range(self.max_retries):
-                try:
-                    ai_response = self._call_deepresearch_api(
-                        user_message, user_context, user_profile, relationship_level, analysis, current_mood
-                    )
-                    
-                    if ai_response and self._validate_response(ai_response):
-                        logger.info(f"🤖 AI Response successful (attempt {attempt + 1})")
-                        self.api_call_count += 1
-                        self.last_api_call = datetime.datetime.now()
-                        return ai_response
+            # Сначала пробуем OpenRouter
+            openrouter_response = openrouter_ai.get_response(user_message, user_context)
+            if openrouter_response:
+                print(f"✅ AI: Успешный ответ от OpenRouter!")
+                return openrouter_response
+            
+            # Если OpenRouter не сработал, пробуем DeepResearch (на всякий случай)
+            if self.deepresearch_api_key and "your_deepresearch" not in self.deepresearch_api_key:
+                print("🔄 AI: Пробуем DeepResearch...")
+                for attempt in range(self.max_retries):
+                    try:
+                        analysis = self.conversation_analyzer.analyze_message(user_message, user_context)
+                        current_mood = self.mood_system.detect_mood(user_message, user_context)
                         
-                except requests.exceptions.Timeout:
-                    logger.warning(f"⏰ API Timeout on attempt {attempt + 1}")
-                    continue
-                except Exception as e:
-                    logger.error(f"❌ API Error on attempt {attempt + 1}: {e}")
-                    break
+                        ai_response = self._call_deepresearch_api(
+                            user_message, user_context, user_profile, relationship_level, analysis, current_mood
+                        )
+                        if ai_response:
+                            print(f"✅ AI: Успешный ответ от DeepResearch!")
+                            return ai_response
+                    except Exception as e:
+                        print(f"❌ AI: DeepResearch ошибка: {e}")
             
+            # Если все API не сработали - умный fallback
+            print("🔄 AI: Используем улучшенный fallback")
+            analysis = self.conversation_analyzer.analyze_message(user_message, user_context)
             fallback_response = self.fallback_system.get_smart_response(
                 user_message, user_context, user_profile, relationship_level, analysis
             )
             
-            mood_response = self.mood_system.get_mood_response()
-            if random.random() < 0.3:
-                fallback_response = f"{mood_response} {fallback_response}"
-            
-            logger.info(f"🔄 Using Smart Fallback")
-            return fallback_response
+            # Добавляем немного вариативности
+            enhancements = [" 💖", " 🌸", " ✨", " 💫", " 🌟"]
+            return fallback_response + random.choice(enhancements)
             
         except Exception as e:
-            logger.error(f"❌ AI System Error: {e}")
-            return "💖 I'm here for you! Let's continue our wonderful conversation! 🌸"
+            print(f"💥 AI: Критическая ошибка: {e}")
+            return "💖 Извини, у меня небольшие технические проблемы... Но я всё равно здесь для тебя! 🌸"
     
     def _call_deepresearch_api(self, user_message: str, user_context: List[Dict],
                              user_profile: Dict, relationship_level: Dict, analysis: Dict, current_mood: MoodType) -> Optional[str]:
@@ -1113,7 +1177,6 @@ class SimpleDatabase:
         for user_id, user_ach in achievements_data.items():
             different_buttons = user_ach.get('progress', {}).get('different_buttons', [])
             
-            # ИСПРАВЛЕНИЕ: безопасное создание set из list
             if isinstance(different_buttons, list):
                 different_buttons_set = set(different_buttons)
             else:
@@ -1124,7 +1187,7 @@ class SimpleDatabase:
                 'progress': {
                     'messages_sent': user_ach.get('progress', {}).get('messages_sent', 0),
                     'buttons_used': user_ach.get('progress', {}).get('buttons_used', 0),
-                    'different_buttons': different_buttons_set,  # ИСПРАВЛЕНО
+                    'different_buttons': different_buttons_set,
                     'levels_reached': user_ach.get('progress', {}).get('levels_reached', 1),
                     'days_active': user_ach.get('progress', {}).get('days_active', 1),
                     'premium_activated': user_ach.get('progress', {}).get('premium_activated', 0)
@@ -1351,7 +1414,6 @@ class AchievementSystem:
         for ach_id, ach_data in self.achievements.items():
             if ach_id not in user_ach['unlocked']:
                 progress_value = user_ach['progress'].get(ach_data['type'], 0)
-                # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: проверяем тип данных перед сравнением
                 if isinstance(progress_value, (set, list)):
                     progress_value = len(progress_value)
                 if progress_value >= ach_data['goal']:
@@ -1374,7 +1436,6 @@ class AchievementSystem:
             return {}
         
         progress_value = user_ach['progress'].get(ach_data['type'], 0)
-        # ИСПРАВЛЕНИЕ: проверяем тип данных
         if isinstance(progress_value, (set, list)):
             progress_value = len(progress_value)
             
@@ -2319,15 +2380,51 @@ def handle_premium_callback(call):
         
         if call.data == "premium_basic":
             success = premium_manager.activate_premium(user_id, PremiumTier.BASIC)
-            handle_premium_activation(call, success, PremiumTier.BASIC)
+            if success:
+                bot.answer_callback_query(call.id, "🎉 Basic Premium activated!")
+                bot.send_message(
+                    user_id,
+                    "💎 *Welcome to Basic Premium!*\n\n"
+                    "You now have access to:\n"
+                    "• 8 message memory\n• No ads\n• Unlimited messages\n• Priority access\n\n"
+                    "Thank you for supporting Luna! 💖",
+                    parse_mode='Markdown'
+                )
+                achievement_system.check_achievements(user_id, 'premium_activated', 1)
+            else:
+                bot.answer_callback_query(call.id, "❌ Activation failed")
         
         elif call.data == "premium_premium":
-            success = premium_manager.activate_premium(user_id, PremiumTier.PREMIUM)  
-            handle_premium_activation(call, success, PremiumTier.PREMIUM)
+            success = premium_manager.activate_premium(user_id, PremiumTier.PREMIUM)
+            if success:
+                bot.answer_callback_query(call.id, "🎉 Premium activated!")
+                bot.send_message(
+                    user_id,
+                    "⭐ *Welcome to Premium!*\n\n"
+                    "You now have access to:\n"
+                    "• 16 message memory\n• Early access\n• Exclusive content\n• Personality customization\n\n"
+                    "Thank you for being a premium user! 🌟",
+                    parse_mode='Markdown'
+                )
+                achievement_system.check_achievements(user_id, 'premium_activated', 1)
+            else:
+                bot.answer_callback_query(call.id, "❌ Activation failed")
         
         elif call.data == "premium_vip":
             success = premium_manager.activate_premium(user_id, PremiumTier.VIP)
-            handle_premium_activation(call, success, PremiumTier.VIP)
+            if success:
+                bot.answer_callback_query(call.id, "🎉 VIP Premium activated!")
+                bot.send_message(
+                    user_id,
+                    "👑 *Welcome to VIP!*\n\n"
+                    "You now have access to:\n"
+                    "• 32 message memory\n• Voting power\n• Advanced analytics\n• All features unlocked\n\n"
+                    "Thank you for being our top supporter! 💫",
+                    parse_mode='Markdown'
+                )
+                achievement_system.check_achievements(user_id, 'premium_activated', 1)
+            else:
+                bot.answer_callback_query(call.id, "❌ Activation failed")
         
         elif call.data == "premium_compare":
             bot.answer_callback_query(call.id, "📋 Showing feature comparison...")
@@ -2343,39 +2440,6 @@ def handle_premium_callback(call):
             bot.answer_callback_query(call.id, "❌ Activation failed")
         except:
             pass
-
-def handle_premium_activation(call, success: bool, tier: PremiumTier):
-    try:
-        user_id = call.from_user.id
-        
-        if success:
-            bot.answer_callback_query(call.id, f"🎉 {tier.value.title()} activated!")
-            
-            config = premium_manager.get_tier_info(tier)
-            welcome_text = f"""
-💎 *Welcome to {config['name']} Premium!* 🎊
-
-Thank you for upgrading your Luna experience! 
-
-*You now have access to:*
-• {config['limits']['max_context_messages']} message memory
-• {', '.join(config['features'])}
-• Priority response times
-• No advertising interruptions
-
-Your support helps us continue developing and improving Luna! 💖
-
-Explore your new features and enjoy the enhanced experience! 🚀
-            """
-            
-            bot.send_message(user_id, welcome_text, parse_mode='Markdown')
-            achievement_system.check_achievements(user_id, 'premium_activated', 1)
-            
-        else:
-            bot.answer_callback_query(call.id, "❌ Activation failed - please try again")
-            
-    except Exception as e:
-        logger.error(f"❌ Error handling premium activation: {e}")
 
 def show_premium_comparison(message):
     try:
@@ -2593,8 +2657,8 @@ if __name__ == "__main__":
     print("🚀 Starting Luna Bot - Ultra Vision Fixed Edition...")
     print(f"📊 Initial stats: {len(db.user_stats)} users, {db.get_total_messages()} messages")
     print(f"🌐 Web dashboard: http://0.0.0.0:10000")
-    print(f"🤖 AI System: {'✅ Enabled' if DEEPRESEARCH_API_KEY else '❌ Disabled'}")
-    print(f"💎 Premium System: ✅ Ready")
+    print(f"🤖 AI System: {'✅ OpenRouter Enabled' if openrouter_ai.api_key else '❌ Disabled'}")
+    print(f"💎 Premium System: ✅ Fixed & Working")
     print(f"🎮 All Features: ✅ Loaded")
     
     try:
